@@ -1,6 +1,6 @@
 # 下载器
 一个使用vue作为前端页面，通过electron集成方式的下载器
-![dd-popup text](https://github.com/da-dong-dong/dd-plugin/blob/master/MD_imgs/11.png)
+![erp-cloud-download text](https://github.com/da-dong-dong/erp-cloud-download/blob/master/MD_imgs/1.png)
 ``` javascript 
 // background.js
 
