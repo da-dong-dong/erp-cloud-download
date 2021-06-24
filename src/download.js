@@ -3,11 +3,13 @@
  */
 import winConfig from './winConfig.js';
 import log from 'electron-log';
+import Bagpipe from 'bagpipe';
 import path from 'path';
 import http from 'http';
 import fs from 'fs';
 import { ipcMain } from 'electron';
 let isStop = null;
+
 export default class Download extends winConfig {
 	constructor(win, urls,pathStr,fileTitle,OrderNumber,paths,fileNamsNO) {
 	  super();
@@ -41,21 +43,26 @@ export default class Download extends winConfig {
 	 */
 	async start(num) {
 		this.downFileNum = num;
+		const bagpipe = new Bagpipe(this.downFileNum);
 		const dir = await this.createFolder(this.pathStr);
 		let s = 0;
 		for (let i = 0; i < this.urls.length; i++) {
-            let name = this.splitFileName(this.urls[i]);
+			let name = this.urls[i].substring(this.urls[i].lastIndexOf('/') + 1)
              //获取文件名
             let arrName = name.split('\\')
 			let arrNameOk = arrName[arrName.length-1].split("&")[0]
 			let arrName1 = arrName.slice(3)
 			arrName1.pop()
-			this.downloadImage(this.urls[i], arrNameOk, dir, i, this.win, this.fileObj,this.fileTitle,arrName,arrName1, (index, win, fileObj, name,OrderNumber) => {
+			let strPaths = ''
+			if(this.paths){
+				strPaths = this.paths[i]
+			}
+			bagpipe.push(this.downloadImage,this.urls[i], arrNameOk, dir, i, this.win, this.fileObj,this.fileTitle,arrName,arrName1,this,strPaths, (index, win, fileObj, name,OrderNumber) => {
 				delete fileObj[name];
 				s++;
 				if (s >= this.urls.length) {
 					// 下载完成
-					//console.log('下载完成5588')
+					console.log('下载完成5588')
 					win.webContents.send('down-success',name,OrderNumber);
 				}
 			})
@@ -63,18 +70,19 @@ export default class Download extends winConfig {
 		
 		
 	}	
-	async downloadImage(src, name, pathStr, index, win, fileObj,fileTitle,arrName,arrName1, callback) {
+	
+	async downloadImage(src, name, pathStr, index, win, fileObj,fileTitle,arrName,arrName1,_this,strPaths, callback) {
 		let nameTitle = null
 		let nameNew = null
 		let out = null
-		if(this.paths){
-			if(this.fileNamsNO){
+		if(strPaths){
+			if(_this.fileNamsNO){
 				if(arrName[3]){
 					nameTitle = `${pathStr}/${fileTitle}/${arrName[3]}`
 				}else{
 					nameTitle = `${pathStr}/${fileTitle}/样片图片`
 				}
-				let arr = this.paths.split('\\')
+				let arr = strPaths.split('\\')
 				let arrs
 				if(arr[1]){
 					arrs = `${arr[0]}[${arr[1]}：${arr[2]}]`
@@ -82,9 +90,9 @@ export default class Download extends winConfig {
 					arrs = `${arr[0]}`
 				}
 				
-				nameNew = `${this.fileNamsNO}${arrs})${name}`
+				nameNew = `${_this.fileNamsNO}${arrs})${name}`
 			}else{
-				let arr = this.paths.split('\\')
+				let arr = strPaths.split('\\')
 				let arrs
 				if(arr[1]){
 					arrs = `${arr[0]}/${arr[1]}`
@@ -100,8 +108,8 @@ export default class Download extends winConfig {
 		}
 		
 		//创建文件夹
-		await this.createFolder(nameTitle)
-		if(this.fileNamsNO){
+		await _this.createFolder(nameTitle)
+		if(_this.fileNamsNO){
 			out = fs.createWriteStream(path.join(nameTitle, nameNew));
 		}else{
 			out = fs.createWriteStream(path.join(nameTitle, name));
@@ -124,26 +132,48 @@ export default class Download extends winConfig {
 			res.pipe(out);
 			
 			let cur = 0;
-			res.on('data', (chunk) => {
+			function sends(chunk){
 				cur += chunk.length;
-				// const progress = (100.0 * cur / len).toFixed(2) // 当前进度
+				const progress = (100.0 * cur / len).toFixed(2) // 当前进度
 				try {
 					if (fileObj[name]) {
 						fileObj[name].transferredBytes = cur;
+						fileObj[name].progress = progress;
+						fileObj[name].OrderNumber = _this.OrderNumber;
 					}
 				} catch (e) {
 					// win.webContents.send('down-msg-err', `${src},文件错误，${JSON.stringify(e)}`);
 					log.debug(`${src},文件错误，${e}`);
 				}
-				win.webContents.send('down-msg', fileObj);
+				
+				// 暂停中
+				if(isStop){
+                    console.log('暂停个数'+index)
+					return true
+                }else{
+					win.webContents.send('down-msg', fileObj)
+				}
+			}
+			let throttle = _this.throttle(sends,100)
+			// 节流
+			res.on('data', (chunk)=>{
+				if(isStop){
+                    console.log('暂停个数'+index)
+					return true
+                }else{
+					throttle(chunk)
+				}
 				
 			});
 			
 			res.on('end', () => {
                 if(isStop){
                     console.log('暂停个数'+index)
+					return true
                 }else{
-                    callback(index, win, fileObj, name,this.OrderNumber)
+					fileObj[name].progress = "100.00"
+					win.webContents.send('down-msg', fileObj)
+                    callback(index, win, fileObj, name,_this.OrderNumber)
                 }
                 
 				

@@ -1,7 +1,7 @@
 //文件读取
 import { app } from 'electron'
 import winConfig from "@/winConfig";
-import {ipcMain, shell } from 'electron';
+import {ipcMain, shell, dialog} from 'electron';
 import path from 'path'//解析需要遍历的文件夹
 import fs from 'fs';
 import download from './download';
@@ -92,10 +92,28 @@ export default class extends winConfig {
         })
 
          // 打开目录文件
-         ipcMain.on('successFile', () => {
-             console.log(this.filePath)
+        ipcMain.on('successFile', () => {
             shell.showItemInFolder(this.filePath)
         })
+
+        // 弹窗文件夹选择
+        ipcMain.on('onChangeFilePath', (event,filePath) => {
+            dialog.showOpenDialog({
+                properties: ['openFile','openDirectory'] // 可以选择文件且可以多选
+                },(files)=> {
+                
+                if (files){// 如果有选中
+                    let filePathName = `${files[0]}\\cacheFile`;
+                    fs.writeFile(`${filePath}/cacheFilePath.json`, JSON.stringify(filePathName), (err) => {
+                        if (err) {
+                            console.log(err)
+                        }
+                        event.sender.send('onChangeFilePathSuccess', filePathName)
+                    })
+                }
+            
+            })
+       })
 
         //窗口设置
         ipcMain.on('topSet', (event, arg) => {
@@ -140,7 +158,6 @@ export default class extends winConfig {
        ipcMain.on('getHttpImg', (event, arg) => {
           
             let {filePathName,fileTitle,fileID,arrImg,paths,fileNamsNO} = arg;
-           
             downImg = new download(this.win,arrImg,filePathName,fileTitle,fileID,paths,fileNamsNO)
             downImg.start(1)
             //let arrs =["http://10.30.1.8:9200/fserver/IDownloadFile?keypath=5621002859025268634:\%E5%8E%9F%E7%89%87\201105015\201105015-01\%E6%AD%A3%E5%B8%B8(172)\%E5%BE%AE%E4%BF%A1%E6%88%AA%E5%9B%BE_20201103170651.png&photoType=1"]

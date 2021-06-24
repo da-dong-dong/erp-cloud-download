@@ -29,7 +29,6 @@
           :data="tableData"
           style="width: 100%"
           @selection-change="handleSelectionChange"
-          v-loading="loading"
          >
           <el-table-column
             type="selection"
@@ -50,15 +49,6 @@
             label="任务状态"
             >
             <template slot-scope="scope">{{scope.row.httpOK==1?(scope.row.inRun?scope.row.inRun:'未开始'):"服务器错误"}}</template>
-          </el-table-column>
-          <el-table-column
-            label="当前进度"
-            >
-            <template slot-scope="scope">
-              <p v-if="scope.row.fileImg && types[scope.row.downType-1].indexOf('上传') == '-1'">{{scope.row.downText}}</p>
-              <p v-else></p>
-              <p style="display:none">{{downText}}</p>
-            </template>
           </el-table-column>
            <el-table-column
             label="进度报告"
@@ -127,8 +117,6 @@ export default {
   },
   data(){
     return{
-      loading:false, // 加载中
-      downText:null,// 当前下载
       times:null,
       timeNun:0,
       arrnum:0,
@@ -288,11 +276,7 @@ export default {
         if(this.checkData.length==0){
           this.$message.error('请选择要重新开始的任务！')
         }else{
-          this.$ipcRenderer.send('setStop');
-           this.loading = true
-          this.$ipcRenderer.removeAllListeners(['down-msg'])
-          setTimeout(()=>{
-           //标记
+          //标记
           for(let i=0;i<this.tableData.length;i++){
             for(let j=0;j<this.checkData.length;j++){
               if(this.tableData[i].fileID != this.checkData[j].fileID){
@@ -307,20 +291,39 @@ export default {
           //暂停，再更新
           for(let i=0;i<this.tableData.length;i++){
             let item = this.tableData[i];
-            item.downText = null
             if(!item.check){
               if(item.fileImg){
+                let num =0;
                 for(let j=0;j<item.fileImg.length;j++){
-                  item.fileImg[j].isOK = false
+                  if(!item.fileImg[j].isOK){
+                    num++;
+                  }
+                  console.log(num)
+                  if(num<=item.fileImg.length && num>0){
+                    item.isStop = true,
+                    item.inRun = "已暂停"
+                  }
+                  
                 }
+              }else{
+                item.isStop = true,
+                item.inRun = "已暂停";
               }
             }
           }
-          this.$set(this.tableData)
+          for(let i=0;i<this.tableData.length;i++){
+            for(let j=0;j<this.checkData.length;j++){
+              if(this.tableData[i].fileID == this.checkData[j].fileID){
+                  //替换重新开始
+                  let arrs = JSON.parse(JSON.stringify(this.checkData[j]))
+                  this.tableData.splice(i,1,arrs)
+              }
+            }
+          }
+    
+         
           this.onClickCheck()
-          this.loading = false
-          },1000)
-          
+          console.log(this.checkData,'aaaasdfsd')
         }
       },
       //退出程序
@@ -372,63 +375,58 @@ export default {
       },
       //全部暂停
       onClickStopAll(type){
-        //暂停下载
-        this.$ipcRenderer.send('setStop');
-        this.$ipcRenderer.removeAllListeners(['down-msg'])
         //暂停数据
         let tableData = this.tableData
-          //计算是否已上传
-        if(type == '选中'){
-            for(let i=0;i<tableData.length;i++){
-              let item = tableData[i];
-              item.downText = null
-              if(!item.check){
-                if(item.fileImg){
-                  let num =0;
-                  for(let j=0;j<item.fileImg.length;j++){
-                    if(!item.fileImg[j].isOK){
-                      num++;
-                    }
-                    console.log(num)
-                    if(num<=item.fileImg.length && num>0){
-                      item.isStop = true,
-                      item.inRun = "已暂停"
-                    }
-                    
+        //计算是否已上传
+       if(type == '选中'){
+          for(let i=0;i<tableData.length;i++){
+            let item = tableData[i];
+            if(!item.check){
+              if(item.fileImg){
+                let num =0;
+                for(let j=0;j<item.fileImg.length;j++){
+                  if(!item.fileImg[j].isOK){
+                    num++;
                   }
-                }else{
-                  item.isStop = true,
-                  item.inRun = "已暂停";
+                  console.log(num)
+                  if(num<=item.fileImg.length && num>0){
+                    item.isStop = true,
+                    item.inRun = "已暂停"
+                  }
+                  
                 }
+              }else{
+                item.isStop = true,
+                item.inRun = "已暂停";
               }
             }
-        }else{
-            for(let i=0;i<tableData.length;i++){
-              let item = tableData[i];
-              item.downText = null
-                if(item.fileImg){
-                  let num =0;
-                  for(let j=0;j<item.fileImg.length;j++){
-                    if(!item.fileImg[j].isOK){
-                      num++;
-                    }
-                    console.log(num)
-                    if(num<=item.fileImg.length && num>0){
-                      item.isStop = true,
-                      item.inRun = "已暂停"
-                    }
-                    
+          }
+       }else{
+          for(let i=0;i<tableData.length;i++){
+            let item = tableData[i];
+              if(item.fileImg){
+                let num =0;
+                for(let j=0;j<item.fileImg.length;j++){
+                  if(!item.fileImg[j].isOK){
+                    num++;
                   }
-                }else{
-                  item.isStop = true,
-                  item.inRun = "已暂停";
+                  console.log(num)
+                  if(num<=item.fileImg.length && num>0){
+                    item.isStop = true,
+                    item.inRun = "已暂停"
+                  }
+                  
                 }
-            }
-        }
+              }else{
+                item.isStop = true,
+                item.inRun = "已暂停";
+              }
+          }
+       }
+        //暂停下载
+        this.$ipcRenderer.send('setStop');
         this.tableData = JSON.parse(JSON.stringify(this.tableData));
         this.$set(this.tableData)
-        
-        
       },
       //循环上传数据
      async onClickForImg(type){
@@ -445,7 +443,6 @@ export default {
               }
             }
           });
-          let tableOne = 0; // 单次下载
           for(let i=0;i<imgData.length;i++){
             //判断服务器是否正常，跳出本次循环
             if(imgData[i].httpOK ==1){
@@ -456,17 +453,7 @@ export default {
                   if(!imgData[i].isStop){
                     //是否导出
                     if(imgData[i].out == '导出'){
-                       if(imgData[i].downText){
-                        imgData[i].inRun = "正在进行";
-                        break;
-                      }
-                      if(tableOne === 1){
-                        imgData[i].inRun = "排队中";
-                        break;
-                      }
-                      
-                      this.getImgContent(imgData[i])
-                      tableOne++;
+                    await this.getImgContent(imgData[i])
                     }else{
                       await this.onClickHttp(imgData[i])
                         console.log('我是上传')
@@ -484,7 +471,6 @@ export default {
               item.inRun = "排队中"
             }
           });
-          let tableOne = 0; // 单次下载
           for(let i=0;i<imgData.length;i++){
             //判断服务器是否正常，跳出本次循环
             if(imgData[i].httpOK ==1){
@@ -493,17 +479,7 @@ export default {
                 if(!imgData[i].isStop){
                   //是否导出
                   if(imgData[i].out == '导出'){
-                    if(imgData[i].downText ){
-                      imgData[i].inRun = "正在进行";
-                      break;
-                    }
-                    if(tableOne === 1){
-                      imgData[i].inRun = "排队中";
-                      break;
-                    }
-                    
-                    this.getImgContent(imgData[i])
-                    tableOne++;
+                  await this.getImgContent(imgData[i])
                   }else{
                     await this.onClickHttp(imgData[i])
                       console.log('我是上传')
@@ -583,8 +559,6 @@ export default {
                 if(!tableData.fileImg[j].isOK){
                    await this.onClickFiles(tableData,tableData.fileImg[j])
                 }
-            }else{
-              break;
             }
          
         }
@@ -687,20 +661,10 @@ export default {
                   "app_key":serverKey
                 }
                 }).then(res=>{
-                  let data = JSON.parse(res.data)
-                  if(data.code === 200){
-                    tableDataImg.isOK = true; 
-                    this.$set(this.tableData)
-                    this.$set(this.tableData)
-                    resole()
-                  }else{
-                    tableDataImg.isOK = true; 
-                    tableData.isStop = false,
-                    tableData.inRun = `已暂停,错误信息：${data.msg}`
-                    console.log(res)
-                    this.$set(this.tableData)
-                  }
-                  
+                  console.log(res);
+                  tableDataImg.isOK = true; 
+                  this.$set(this.tableData)
+                  resole()
                 }).catch(err=>{
                   rejcet(err)
                 })
@@ -741,36 +705,27 @@ export default {
           
         }else{
           //循环记录值
-          let arrImg = []
-          let strPaths = []
           for(let i=0;i<fileImg.length;i++){
             //是否暂停下载
             if(!tableData.isStop){
               //判断是否已经上传过的
                 if(!fileImg.isOK){
+                  let arrImg = []
                   if(httpPath){
-                    arrImg.push(`${fileImg[i].filepath}&size=${downType== 14?'p':'b'}`);
+                    arrImg.push(`${fileImg[i].filepath}&size=b`);
                   }else{
                     arrImg.push(`${fileImg[i].filepath}`);
                   }
                   //通知主线程获取图片
                   jsonParse.arrImg = arrImg
-                  strPaths.push(fileImg[i].paths)
-                  jsonParse.paths = strPaths
-                  // this.$ipcRenderer.send('getHttpImg', jsonParse,)
-                  // await this.tiemImg()
+                  jsonParse.paths = fileImg[i].paths
+                  this.$ipcRenderer.send('getHttpImg', jsonParse,)
+                  await this.tiemImg()
                 }
             }
           }
-          console.log(jsonParse)
-          this.$ipcRenderer.send('getHttpImg', jsonParse,)
-          this.downMsg()
-
            // 判断是否样片导出
           if(httpPath){
-            // 检测文件是否存在
-            await this.createFolder(`${filePathName}/${fileTitle}/${SubOrderNumber}`)
-
             //写入文本
             let tiem = new Date(parseInt(jsonCreateTime)/1000).toLocaleString().replace(/:\d{1,2}$/,' ');
             let str = `【订单号】：${OrderNumber} 【客户姓名】：${CustomerName} 【联系电话】：${CustomerMobile} 【选片时间】：${tiem} \n 选片要求:  ${make} \n`
@@ -786,7 +741,7 @@ export default {
                     console.log(err)
                 }
             })
-            
+
             // 写入html制作单
             let headHTML = `<!DOCTYPE html> <head> <meta charset="utf-8"></head><style>.printingSub_container td,.printingSub_container th { padding: 5px 10px; border: 1px solid #DDD; }</style>${SelectHTML}`
             fs.writeFile(`${filePathName}/${fileTitle}/${SubOrderNumber}/制作单.html`, headHTML, (err) => {
@@ -795,9 +750,9 @@ export default {
                 }
             })
           }
-
+         
         }
-           
+        
       },
 
       //获取下载地址
@@ -816,7 +771,7 @@ export default {
         let jsonParse ={
           fileImg,filePathName,url,fileTitle,fileID
         }
-
+        
         //任务状态改变
         tableData.inRun = "正在进行"
 
@@ -830,29 +785,21 @@ export default {
             
           }else{
             //循环记录值
-            let arrImg = []
             for(let i=0;i<fileImg.length;i++){
-              if(!fileImg[i].isOK){
-                if(httpPath){
-                  arrImg.push(`${fileImg[i].filepath}&size=${downType== 14?'p':'b'}`);
-                }else{
-                  arrImg.push(`${fileImg[i].filepath}`);
-                }
-                //通知主线程获取图片
-                jsonParse.arrImg = arrImg
-                //this.$ipcRenderer.send('getHttpImg', jsonParse,)
-                //await this.tiemImg()
+              let arrImg = []
+              if(httpPath){
+                arrImg.push(`${fileImg[i].filepath}&size=b`);
+              }else{
+                arrImg.push(`${fileImg[i].filepath}`);
               }
+              //通知主线程获取图片
+              jsonParse.arrImg = arrImg
+              this.$ipcRenderer.send('getHttpImg', jsonParse,)
+              await this.tiemImg()
+
             }
-            this.$ipcRenderer.send('getHttpImg', jsonParse,)
-            //this.tiemImg()
-            this.downMsg()
-            
             // 判断是否看板导出
             if(seeType){
-              // 检测文件是否存在
-              await this.createFolder(`${filePathName}/${fileTitle}/${SubOrderNumber}`)
-              
               //写入文本
               let str = `【订单号】：${OrderNumber} 【客户姓名】：${CustomerName} 【联系电话】：${CustomerMobile}  \n 客户说明:  ${customerInstructions} \n 相片说明:  ${photoInstructions} \n`
               
@@ -866,113 +813,104 @@ export default {
         }
         
       },
-      //监听最后完成情况
-      tiemImg(tableData){
-        //完成
-        for(let i=0;i<tableData.length;i++){
-          let item = tableData[i]
-          if(item.fileImg){
-            let num = 0
-            for(let j=0;j<item.fileImg.length;j++){
-              if(item.fileImg[j].isOK){
-                num++
-              }
-              
-              if(num == item.fileImg.length){
-                item.inRun = '已完成'
-                //通知主线程删除       
-                console.log(item,'删除啦！')
-
-                let successFile = this.filePathLocal.replace('/tasklist','') + "/successFile"
-                fs.writeFileSync(`${successFile}/${item.fileID}`, JSON.stringify(tableData));
-                // 判断是否是缓存图片
-                if(item.downType == 14){
-                  // 盘符路径
-                  let cachPath = this.filePathLocal.replace('/tasklist','') + "/cacheFile"
-                  // 默认缓存文件
-                  let cachFile = `${cachPath}/cacheFile.json`
-                  let ImportType = ['原片','初修片','初修片','精修片','设计片']
-                  let title = `${item['OrderNumber']}(${ImportType[item['ImportType']]})`
-                  // 读取文件内容
-                  let fileArr = JSON.parse(fs.readFileSync(cachFile, 'utf-8'));
-                  // 判断添加文件路径
-                  fileArr.map(item_=>{
-                    let itmeTilte = item_.title
-                    if(itmeTilte == title){
-                      
-                      let imgLenth = item.fileImg.length
-                      let imgAll = item.fileImg
-                      let imgItem=0
-                      let fileSelectImg = []
-                      for(;imgItem<imgLenth;imgItem++){
-                        //获取文件名
-                        let arrName = imgAll[imgItem]['filepath']
-                        let index = arrName.lastIndexOf(item['OrderNumber']);
-                        let arrPath = arrName.substring(index,arrName.length).replace(/\\/g,`/`);
-                        fileSelectImg.push(`atom:${item['filePathName']}/${title}/${arrPath}`)
-                      }
-                      item_['fileTime'] = item.jsonCreateTime / 1000
-                      item_['fileArr'] = fileSelectImg
-                    }
-                  })
-                  // 写入文件
-                  fs.writeFileSync(cachFile, JSON.stringify(fileArr));
-                }
-                this.$ipcRenderer.send('delFie', item.fileID);
-                this.$ipcRenderer.on('delFileSuccess', (event, res) => {
-                  this.$ipcRenderer.removeAllListeners(['delFileSuccess'])
-                  //删除表格
-                  //tableData.splice(i,1);
-                  const ress = res
-                  for(let a=0;a<this.tableData.length;a++){
-                    if(this.tableData[a]){
-                      if(this.tableData[a].fileID == ress){
-                        this.tableData.splice(a,1)
-                      }
-                    }
-                  } 
-                    this.$set(this.tableData)
-                })
-              setTimeout(()=>{
-                this.$ipcRenderer.removeAllListeners(['down-msg'])
-                this.onClickForImg()
-              },1000)
-              }
-            }
-            
-          }
-        }
-      },
-      // 当前下载
-      downMsg(){
-        this.$ipcRenderer.on('down-msg', (event, res) => {
-          //this.$ipcRenderer.removeAllListeners(['down-msg'])
-          let keys = Object.keys(res)
-          for(let i=0;i<this.tableData.length;i++){
-            
-            let item = this.tableData[i]
-            if(item.fileID === res[keys]['OrderNumber']){
-              item.downText = `${keys}=>${res[keys]['progress']}%`
-              if(res[keys]['progress'] === "100.00"){
+      //延迟一个一个来
+      async tiemImg(){
+        return new Promise((resolve)=>{
+          //完成
+          this.$ipcRenderer.on('down-success', (event, arg,id) => {  
+            this.$ipcRenderer.removeAllListeners(['down-success'])
+           let tableData = this.tableData;
+            for(let i=0;i<tableData.length;i++){
+              let item = tableData[i]
+              if(item.fileImg){
+                
                 for(let j=0;j<item.fileImg.length;j++){
-                  let nameArr
-                  if(item.httpPath){
-                    nameArr= item.fileImg[j].filepath.split('\\');
-                  }else{
-                    nameArr= item.fileImg[j].filepath.split('/');
-                  } 
-                  let name = nameArr[nameArr.length-1]
-                  
-                  if(name == keys && !item.fileImg[j].isOK && item.downText == `${name}=>100.00%`){
-                    item.fileImg[j].isOK = true;
-                    break;
+                  if(item.fileID == id){
+                    let nameArr
+                    if(item.httpPath){
+                      nameArr= item.fileImg[j].filepath.split('\\');
+                    }else{
+                      nameArr= item.fileImg[j].filepath.split('/');
+                    } 
+                    let name = nameArr[nameArr.length-1]
+                    if(name == arg){
+                      item.fileImg[j].isOK = true
+                    }
+                 
+                   
                   }
                 }
               }
-              break;
             }
-          }
-          this.downText=`${keys}=>${res[keys]['progress']}%`
+            for(let a=0;a<tableData.length;a++){
+              let num = 0;
+              let item = tableData[a]
+              if(item.fileImg){
+                for(let k=0;k<item.fileImg.length;k++){
+                if(item.fileImg[k].isOK){
+                  num++
+                }
+                 if(num == item.fileImg.length){
+                      item.inRun = '已完成'
+                       //通知主线程删除       
+                       console.log(item,'删除啦！')
+                       let successFile = this.filePathLocal.replace('/tasklist','') + "/successFile"
+                      fs.writeFileSync(`${successFile}/${item.fileID}`, JSON.stringify(tableData));
+                      // 判断是否是缓存图片
+                      if(item.downType == 14){
+                        // 盘符路径
+                        let cachPath = this.filePathLocal.replace('/tasklist','') + "/cacheFile"
+                        // 默认缓存文件
+                        let cachFile = `${cachPath}/cacheFile.json`
+                        let ImportType = ['原片','初修片','初修片','精修片','设计片']
+                        let title = `${item['OrderNumber']}(${ImportType[item['ImportType']]})`
+                        // 读取文件内容
+                        let fileArr = JSON.parse(fs.readFileSync(cachFile, 'utf-8'));
+                        // 判断添加文件路径
+                        fileArr.map(item_=>{
+                          let itmeTilte = item_.title
+                          if(itmeTilte == title){
+                            
+                            let imgLenth = item.fileImg.length
+                            let imgAll = item.fileImg
+                            let imgItem=0
+                            let fileSelectImg = []
+                            for(;imgItem<imgLenth;imgItem++){
+                              //获取文件名
+                              let arrName = imgAll[imgItem]['filepath']
+                              let index = arrName.lastIndexOf(item['OrderNumber']);
+                              let arrPath = arrName.substring(index,arrName.length).replace(/\\/g,`/`);
+                              fileSelectImg.push(`atom:${item['filePathName']}/${title}/${arrPath}`)
+                            }
+                            item_['fileTime'] = item.jsonCreateTime / 1000
+                            item_['fileArr'] = fileSelectImg
+                          }
+                        })
+                        // 写入文件
+                        fs.writeFileSync(cachFile, JSON.stringify(fileArr));
+                      }
+                      this.$ipcRenderer.send('delFie', item.fileID);
+                      this.$ipcRenderer.on('delFileSuccess', (event, res) => {
+                         this.$ipcRenderer.removeAllListeners(['delFileSuccess'])
+                         //删除表格
+                         //tableData.splice(i,1);
+                         const ress = res
+                         for(let a=0;a<this.tableData.length;a++){
+                           if(this.tableData[a]){
+                             if(this.tableData[a].fileID == ress){
+                               this.tableData.splice(a,1)
+                             }
+                           }
+                         } 
+                          this.$set(this.tableData)
+                      })
+                    }
+              }
+              }
+              
+            }
+             resolve()
+          }) 
         })
       },
       //删除json文件
@@ -1023,11 +961,11 @@ export default {
               if (err) {
                   rejcet(err);
               } else {
-                  //console.log(data);
+                  console.log(data);
                  
                   let md5= crypto.createHash('md5').update(data, 'utf8').digest('hex');
                   let file = new File([data],basename,{type:this.ext2type[extname]});
-                  //console.log(file,md5);
+                  console.log(file,md5);
                   // //上传
                    resolve({file,md5})
               }
@@ -1042,8 +980,8 @@ export default {
             this.fsredFile(filePath).then(({md5,file}) => {
                 this.imgUp(file,filePath,md5,tableData,tableDataImg).then(() => {
                   resolve()
-                }).catch((err) => {
-                  rejcet(err)
+                }).catch(() => {
+                  rejcet()
                 })
             });
 
@@ -1180,42 +1118,6 @@ export default {
             }
         }
         return result;
-      },
-      /**
-       * 检查文件是否存在 / 文件夹
-       * @param path 路径
-       * @return {Promise<unknown>}
-       */
-      isFileIfFolder(path) {
-          return new Promise((resolve) => {
-              fs.access(path, fs.constants.F_OK, (err) => {
-                  resolve(err ? false : true)
-              });
-          })
-      },
-
-      /**
-       * 创建文件夹，如果文件夹存在就跳过，不存在就创建
-       * @param {string} path 路径
-       */
-      async createFolder(path) {
-          return new Promise((resolve, reject) => {
-              this.isFileIfFolder(`${path}`).then((bool) => {
-                  if (!bool) {
-                      // 创建文件夹
-                      fs.mkdir(`${path}`, {recursive: true, mode: '0777'}, (err) => {
-                          if (!err) {
-                              resolve(`${path}`);
-                          } else {
-                              console.error(`创建文件夹失败${JSON.stringify(err)}`)
-                              reject()
-                          }
-                      });
-                  } else {
-                      resolve(`${path}`);
-                  }
-              });
-          })
       }
     
     },
@@ -1223,10 +1125,11 @@ export default {
    watch:{
      tableData:{
       handler(newName) {
+        console.log('我是watch',newName)
           this.tableData = newName;
           this.$set(this.tableData)
-          //判断是否完成，删除json文件
-          this.tiemImg(newName);
+           //判断是否完成，删除json文件
+        //this.delFileJson(this.tableData);
         //如果选中完成关机
         if(this.outWindow){
           if(newName.length == 0){

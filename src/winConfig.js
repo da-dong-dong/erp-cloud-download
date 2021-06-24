@@ -47,7 +47,21 @@ export default class WinConfig {
             })
         }
     }
-
+    /**
+     * 节流
+     */
+    throttle (func, delay = 500) {
+        let isFlag = false
+        return function(...args) {
+          if (isFlag) return
+          func.apply(this, args)
+          isFlag = true
+          setTimeout(() => {
+            isFlag = false
+          }, delay)
+        } 
+      }
+   
     /**
      * 获取本地ip地址
      */
